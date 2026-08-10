@@ -1,0 +1,104 @@
+{{define "title"}}Dashboard - P2P Drop{{end}} {{define "content"}}
+<!-- Header / Navbar -->
+<header class="bg-gray-900 border-b border-gray-800 py-4 px-6">
+  <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div
+        class="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20"
+      >
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"
+          />
+        </svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-white tracking-wide">P2P Drop</h1>
+        <p class="text-xs text-gray-400">Local File & Clip Sharing</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4 text-xs">
+      <div
+        class="bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg flex items-center gap-2"
+      >
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-gray-300 font-medium"
+          >Device: <strong class="text-white">{{.DeviceName}}</strong></span
+        >
+      </div>
+      <div
+        class="bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 font-mono"
+      >
+        Save Dir: {{.SaveDir}}
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Main Content Area -->
+<main class="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+  <!-- Peer List Section -->
+  <div class="md:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-lg font-semibold text-white">Discovered Peers</h2>
+        <p class="text-xs text-gray-400">
+          Nearby devices running P2P Drop on your local network
+        </p>
+      </div>
+      <span
+        id="peer-count"
+        class="bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 text-xs px-2.5 py-1 rounded-full font-medium"
+      >
+        0 peers online
+      </span>
+    </div>
+
+    <div id="peer-list" class="space-y-3">
+      <div
+        class="p-8 text-center text-gray-500 border border-dashed border-gray-800 rounded-xl"
+      >
+        <p class="text-sm">
+          Searching for nearby peers on port {{.UDPPort}}...
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Transfer Box -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-fit">
+    <h2 class="text-lg font-semibold text-white mb-2">Quick Drop</h2>
+    <p class="text-xs text-gray-400 mb-6">
+      Drag and drop files or paste text clips to broadcast
+    </p>
+
+    <div
+      class="border-2 border-dashed border-gray-800 hover:border-indigo-500/50 transition rounded-xl p-6 text-center cursor-pointer bg-gray-950/50 group"
+    >
+      <svg
+        class="w-8 h-8 mx-auto text-gray-600 group-hover:text-indigo-400 transition mb-2"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+        />
+      </svg>
+      <p class="text-xs text-gray-400 font-medium">Select a file to send</p>
+    </div>
+  </div>
+</main>
+{{end}}

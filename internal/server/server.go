@@ -1,10 +1,16 @@
 package server
 
 import (
+	"embed"
+	"fmt"
+	"html/template"
 	"net/http"
 
 	"github.com/akryptic/p2pdrop/internal/config"
 )
+
+//go:embed templates/**
+var templateFS embed.FS
 
 type Server struct {
 	cfg    *config.Config
@@ -25,32 +31,35 @@ func NewServer(cfg *config.Config) *Server {
 	return s
 }
 
-// Simple test handler
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Welcome to P2P Drop Dashboard!"))
-}
-
 func (s *Server) handleSetupPage(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Setup Wizard Page"))
+	fmt.Println("[ LOG ] Setup page hit")
+
+	// If already configured, redirect to dashbaord page
+	if s.cfg.IsReady() {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// parse base and setup templates
+	tmpl := template.Must(template.ParseFS(templateFS, "templates/base.html", "templates/setup.html"))
+
+	// 2. Execute "base" (the parent wrapper defined in base.html)
+	if err := tmpl.ExecuteTemplate(w, "base", s.cfg.Get()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Config Saved!"))
 }
 
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Welcome to P2P Drop Dashboard!"))
+}
+
 // Start boots up the underlying http.ListenAndServe on the specified port
 func (s *Server) Start(addr string) error {
 	return http.ListenAndServe(addr, s.router)
-}
-
-func (s *Server) RequireConfig(next http.HandlerFunc) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        // 1. If NOT configured AND trying to access restricted routes -> Redirect to /setup
-        if !s.cfg.IsReady() && r.URL.Path != "/setup" && r.URL.Path != "/api/config" {
-            http.Redirect(w, r, "/setup", http.StatusFound)
-            return
-        }
-        // 2. Otherwise pass control to the intended page
-        next(w, r)
-    }
 }
