@@ -4,10 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
-const ConfigFilePath = "config.json"
+// GetConfigPath resolves the OS-specific configuration path (~/.config/p2pdrop/config.json)
+func GetConfigPath() (string, error) {
+	baseDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("could not locate user config dir: %w", err)
+	}
+
+	appDir := filepath.Join(baseDir, "p2pdrop")
+
+	// Ensure the ~/.config/p2pdrop directory exists
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return "", fmt.Errorf("could not create config directory: %w", err)
+	}
+
+	return filepath.Join(appDir, "config.json"), nil
+}
 
 type Config struct {
 	mu sync.RWMutex `json:"-"`
@@ -21,12 +37,14 @@ type Config struct {
 
 // NewConfig attempts to load config from disk, falling back to safe defaults if not found.
 func NewConfig() (*Config, error) {
-	// 1. Try to read existing config.json from disk
-	if data, err := os.ReadFile(ConfigFilePath); err == nil {
-		var cfg Config
-		if err := json.Unmarshal(data, &cfg); err == nil {
-			cfg.IsConfigured = true
-			return &cfg, nil
+	if configPath, err := GetConfigPath(); err == nil {
+		// 1. Try to read existing config.json from disk
+		if data, err := os.ReadFile(configPath); err == nil {
+			var cfg Config
+			if err := json.Unmarshal(data, &cfg); err == nil {
+				cfg.IsConfigured = true
+				return &cfg, nil
+			}
 		}
 	}
 
@@ -60,13 +78,18 @@ func (c *Config) WriteConfig(deviceName string, saveDir string, udpPort uint16) 
 		return fmt.Errorf("failed to create save directory: %w", err)
 	}
 
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return err
+	}
+
 	// Save to JSON file
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	return os.WriteFile(ConfigFilePath, data, 0644)
+	return os.WriteFile(configPath, data, 0644)
 }
 
 func (c *Config) IsReady() bool {
