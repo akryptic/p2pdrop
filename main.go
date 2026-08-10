@@ -5,13 +5,19 @@ import (
 	"log"
 
 	"github.com/akryptic/p2pdrop/internal/config"
+	"github.com/akryptic/p2pdrop/internal/server"
 )
 
 func main() {
 	cfg, err := config.NewConfig()
 	if err != nil {
-		log.Fatalf("Config initialization failed: %v", err)
+		log.Fatalf("Failed to initialize config: %v", err)
 	}
 
-	fmt.Printf("Config Initialized! Ready: %v | Device Name: %s\n", cfg.IsReady(), cfg.Get().DeviceName)
+	srv := server.NewServer(cfg)
+
+	fmt.Println("🚀 P2P Drop running at http://localhost:6969")
+	if err := srv.Start(":6969"); err != nil {
+		log.Fatalf("Server stopped: %v", err)
+	}
 }
