@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P Drop</title>
+
+  <!-- 1. Pico CSS Framework -->
+  <link rel="stylesheet" href="/static/css/pico.min.css">
+
+  <!-- 2. Local Inter Font & Pico Theme Overrides -->
+  <link rel="stylesheet" href="/static/css/fonts.css">
+
+  <!-- 3. Alpine.js Engine (defer ensures DOM is ready before Alpine boots) -->
+  <script src="/static/js/alpine.min.js" defer></script>
+
+  <style>
+    /* Custom utility tweaks on top of Pico CSS */
+    [x-cloak] { display: none !important; }
+
+    html {
+      font-size: 82.5%;
+    }
+
+    body {
+      padding-bottom: 2rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background-color: rgba(46, 125, 50, 0.2);
+      color: #66bb6a;
+      border: 1px solid rgba(102, 187, 106, 0.3);
+    }
+
+    .badge-error {
+      background-color: rgba(198, 40, 40, 0.2);
+      color: #ef5350;
+      border: 1px solid rgba(239, 83, 80, 0.3);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-online { background-color: #66bb6a; }
+    .dot-offline { background-color: #ef5350; }
+
+    /* Modal dialog styling overlay */
+    dialog article {
+      max-width: 550px;
+      width: 100%;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--pico-muted-border-color);
+      border-radius: var(--pico-border-radius);
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .dropzone:hover {
+      border-color: var(--pico-primary);
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+
+<body x-data="p2pApp()" x-init="initApp()">
+
+  <!-- Navigation Bar -->
+  <header class="container">
+    <nav>
+      <ul>
+        <li>
+          <strong>🚀 P2P Drop</strong>
+          <small style="color: var(--pico-muted-color); display: block; margin-top: -0.25rem;">Local File Sharing</small>
+        </li>
+      </ul>
+      <ul>
+        <!-- Status Indicator -->
+        <li>
+          <span class="badge" :class="isReady ? 'badge-success' : 'badge-error'">
+            <span class="dot" :class="isReady ? 'dot-online' : 'dot-offline'"></span>
+            <span x-text="config.device_name || 'Unconfigured'"></span>
+          </span>
+        </li>
+        <!-- Settings Gear Button -->
+        <li>
+          <button class="outline contrast" @click="showModal = true" style="padding: 0.4rem 0.8rem; margin: 0;">
+            ⚙️ Settings
+          </button>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="container">
+
+    <!-- UDP Engine Status Card -->
+    <article>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h4 style="margin: 0;">UDP Peer Engine</h4>
+          <p style="margin: 0; color: var(--pico-muted-color); font-size: 0.85rem;">
+            Port: <code x-text="config.udp_port || '9696'"></code> &bull; 
+            Status: <strong x-text="engineRunning ? 'Active' : 'Stopped'"></strong>
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin: 0;">
+          <button @click="toggleEngine()" :class="engineRunning ? 'secondary' : 'primary'" style="margin: 0;">
+            <span x-text="engineRunning ? 'Stop Engine' : 'Start Engine'"></span>
+          </button>
+          <button @click="toggleBroadcast()" class="outline" :disabled="!engineRunning" style="margin: 0;">
+            <span x-text="broadcasting ? 'Broadcast: ON' : 'Broadcast: OFF'"></span>
+          </button>
+        </div>
+      </div>
+    </article>
+
+    <div class="grid">
+
+      <!-- Active Peer List -->
+      <section>
+        <article>
+          <header style="display: flex; justify-content: space-between; align-items: center;">
+            <h5 style="margin: 0;">Discovered Peers</h5>
+            <small style="color: var(--pico-muted-color);" x-text="peers.length + ' online'"></small>
+          </header>
+
+          <template x-if="peers.length === 0">
+            <div style="text-align: center; padding: 2rem 1rem; color: var(--pico-muted-color);">
+              <p style="margin: 0;">No peers discovered yet.</p>
+              <small x-show="!engineRunning">Start the UDP Engine above to scan your local Wi-Fi.</small>
+            </div>
+          </template>
+
+          <template x-for="peer in peers" :key="peer.id">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--pico-muted-border-color);">
+              <div>
+                <strong x-text="peer.device_name"></strong>
+                <div style="font-size: 0.8rem; color: var(--pico-muted-color);" x-text="peer.ip + ':' + peer.http_port"></div>
+              </div>
+              <button class="outline" style="padding: 0.25rem 0.75rem; margin: 0; font-size: 0.8rem;">
+                Send File
+              </button>
+            </div>
+          </template>
+        </article>
+      </section>
+
+      <!-- Drag & Drop Transfer Box -->
+      <section>
+        <article>
+          <header>
+            <h5 style="margin: 0;">Quick Drop</h5>
+          </header>
+          
+          <div class="dropzone">
+            <p style="margin-bottom: 0.5rem;">📁 Drag & drop files here</p>
+            <small style="color: var(--pico-muted-color);">or click to select from disk</small>
+          </div>
+        </article>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Settings / Setup Modal -->
+  <dialog :open="showModal" x-cloak>
+    <article>
+      <header>
+        <button class="close" aria-label="Close" @click="closeModal()"></button>
+        <h3 style="margin: 0;">Configuration Settings</h3>
+      </header>
+
+      <form @submit.prevent="saveConfig()">
+        <label for="device_name">
+          Device Name
+          <input type="text" id="device_name" x-model="form.device_name" placeholder="e.g. Anil-MacBook" required>
+        </label>
+
+        <label for="save_dir">
+          Save Directory
+          <input type="text" id="save_dir" x-model="form.save_dir" placeholder="e.g. ~/Downloads" required>
+        </label>
+
+        <label for="udp_port">
+          UDP Discovery Port
+          <input type="number" id="udp_port" x-model.number="form.udp_port" min="1024" max="65535" required>
+        </label>
+
+        <footer style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+          <button type="button" class="secondary" @click="closeModal()" x-show="isReady">Cancel</button>
+          <button type="submit" class="primary" :busy="saving">
+            <span x-text="saving ? 'Saving...' : 'Save Configuration'"></span>
+          </button>
+        </footer>
+      </form>
+    </article>
+  </dialog>
+
+  <!-- Alpine App Logic -->
+  <script>
+    function p2pApp() {
+      return {
+        showModal: false,
+        isReady: false,
+        saving: false,
+        engineRunning: false,
+        broadcasting: false,
+        config: {
+          device_name: '',
+          save_dir: '',
+          udp_port: 9696
+        },
+        form: {
+          device_name: '',
+          save_dir: '',
+          udp_port: 9696
+        },
+        peers: [],
+
+        async initApp() {
+          await this.fetchConfig();
+        },
+
+        async fetchConfig() {
+          try {
+            const res = await fetch('/api/config');
+            const data = await res.json();
+            
+            this.isReady = data.is_ready;
+            if (data.config) {
+              this.config = data.config;
+              this.form = { ...data.config };
+            }
+
+            // Auto-open settings dialog if setup incomplete
+            if (!this.isReady) {
+              this.showModal = true;
+            }
+          } catch (err) {
+            console.error('Failed to load application configuration:', err);
+          }
+        },
+
+        async saveConfig() {
+          this.saving = true;
+          try {
+            const res = await fetch('/api/config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.form)
+            });
+
+            if (res.ok) {
+              this.config = { ...this.form };
+              this.isReady = true;
+              this.showModal = false;
+            } else {
+              const errText = await res.text();
+              alert('Error saving configuration: ' + errText);
+            }
+          } catch (err) {
+            alert('Network communication error: ' + err);
+          } finally {
+            this.saving = false;
+          }
+        },
+
+        closeModal() {
+          if (this.isReady) {
+            this.showModal = false;
+          }
+        },
+
+        toggleEngine() {
+          this.engineRunning = !this.engineRunning;
+          if (!this.engineRunning) {
+            this.broadcasting = false;
+          }
+        },
+
+        toggleBroadcast() {
+          if (this.engineRunning) {
+            this.broadcasting = !this.broadcasting;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

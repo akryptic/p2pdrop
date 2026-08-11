@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -11,15 +10,12 @@ import (
 	"strings"
 
 	"github.com/akryptic/p2pdrop/internal/config"
+	"github.com/akryptic/p2pdrop/web"
 )
 
-//go:embed templates/**
-var templateFS embed.FS
-
 type Server struct {
-	cfg    *config.Config
-	router *http.ServeMux
-
+	cfg        *config.Config
+	router     *http.ServeMux
 	httpServer *http.Server
 }
 
@@ -29,32 +25,51 @@ func NewServer(cfg *config.Config) *Server {
 		router: http.NewServeMux(),
 	}
 
-	// Register routes guarded by our middleware!
-	s.router.HandleFunc("GET /setup", s.handleSetupPage)
+	// 1. Mount embedded static files (/static/css/..., /static/js/..., /static/fonts/...)
+	// http.FileServerFS handles stripping the prefix and reading directly from web.Files
+	s.router.Handle("GET /static/", http.FileServerFS(web.Files))
+
+	// 2. SPA Entry Point
+	s.router.HandleFunc("GET /", s.handleDashboard)
+
+	// 3. REST API Endpoints
+	s.router.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.router.HandleFunc("POST /api/config", s.handleSaveConfig)
-	s.router.HandleFunc("GET /", s.RequireConfig(s.handleDashboard))
 
 	return s
 }
 
-func (s *Server) handleSetupPage(w http.ResponseWriter, r *http.Request) {
-	// If already configured, redirect to dashbaord page
-	if s.cfg.IsReady() {
-		http.Redirect(w, r, "/", http.StatusFound)
+// Single SPA entry point serving web/templates/index.html
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	// parse base and setup templates
-	tmpl := template.Must(template.ParseFS(templateFS, "templates/base.html", "templates/setup.html"))
+	// Parse index.html from embedded web.Files filesystem
+	tmpl, err := template.ParseFS(web.Files, "templates/index.html")
+	if err != nil {
+		http.Error(w, "Failed to load template: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// 2. Execute "base" (the parent wrapper defined in base.html)
-	if err := tmpl.ExecuteTemplate(w, "base", s.cfg.Get()); err != nil {
+	if err := tmpl.Execute(w, s.cfg.Get()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
+// GET /api/config returns configuration state for Alpine.js initialization
+func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"config":   s.cfg.Get(),
+		"is_ready": s.cfg.IsReady(),
+	})
+}
+
+// POST /api/config saves updated configuration
 func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		DeviceName string `json:"device_name"`
@@ -70,13 +85,8 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Validate Device Name
 	deviceName := strings.TrimSpace(req.DeviceName)
-	if deviceName == "" {
-		http.Error(w, "Device name cannot be empty", http.StatusBadRequest)
-		return
-	}
-
-	if len(deviceName) > 64 {
-		http.Error(w, "Device name cannot exceed 64 characters", http.StatusBadRequest)
+	if deviceName == "" || len(deviceName) > 64 {
+		http.Error(w, "Invalid device name (must be 1-64 characters)", http.StatusBadRequest)
 		return
 	}
 
@@ -115,17 +125,6 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"success"}`))
-}
-
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	// Parse base.html and dashboard.html together
-	tmpl := template.Must(template.ParseFS(templateFS, "templates/base.html", "templates/@.html"))
-
-	if err := tmpl.ExecuteTemplate(w, "base", s.cfg.Get()); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 // Start boots up the underlying HTTP server
