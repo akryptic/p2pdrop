@@ -13,6 +13,7 @@ import (
 
 	"github.com/akryptic/p2pdrop/internal/config"
 	"github.com/akryptic/p2pdrop/internal/server"
+	"github.com/pkg/browser"
 )
 
 func main() {
@@ -27,9 +28,17 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
+	serverURL := "http://localhost:6969"
+
 	// Run HTTP server in a background goroutine
 	go func() {
-		fmt.Println("🚀 P2P Drop running at http://localhost:6969")
+		fmt.Printf("🚀 P2P Drop running at %s\n", serverURL)
+
+		// Open default browser right before blocking on ListenAndServe
+		if err := browser.OpenURL(serverURL); err != nil {
+			log.Printf("Failed to open browser automatically: %v", err)
+		}
+
 		if err := srv.Start(":6969"); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server unexpected crash: %v", err)
 		}
