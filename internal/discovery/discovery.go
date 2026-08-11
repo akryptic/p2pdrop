@@ -8,8 +8,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // Packet defines the JSON structure broadcasted over UDP.
@@ -59,15 +57,11 @@ func (e *Engine) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
 
-	// SO_REUSEPORT allows multiple instances on the same host to bind to the discovery port.
 	lc := net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
 			var err error
 			controlErr := c.Control(func(fd uintptr) {
-				err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
-				if err != nil {
-					_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
-				}
+				err = setReusePort(fd)
 			})
 			if controlErr != nil {
 				return controlErr
